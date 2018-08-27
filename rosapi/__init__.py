@@ -113,12 +113,27 @@ class RosAPI(object):
         self.socket = socket
         self.length_utils = RosApiLengthUtils(self)
 
-    def login(self, username, password):
+    def login(self, username, password, pre643=True):
+        # Note: there are 2 ways of processing login according to
+        # https://wiki.mikrotik.com/wiki/Manual:API#Initial_login
+        # Original behavior of this code was to support old method so
+        # newly introduced option requires to pass `False` as a value for
+        # last parameter, so we don't have a breakage in support for existing
+        # software.
+        if pre643:
+            self._old_style_login(username, password)
+        else:
+            self._new_style_login(username, password)
+
+    def _old_style_login(self, username, password):
         for _, attrs in self.talk([b'/login']):
             token = binascii.unhexlify(attrs[b'ret'])
         md5_hash = md5(b'\x00' + password + token).hexdigest().encode('ascii')
         self.talk([b'/login', b'=name=' + username,
                    b'=response=00' + md5_hash])
+
+    def _new_style_login(self, username, password):
+        self.talk([b'/login', b'=name=' + username, b'=password=' + password)
 
     def talk(self, words):
         if self.write_sentence(words) == 0:
